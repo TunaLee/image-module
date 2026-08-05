@@ -84,9 +84,13 @@ export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
-  if (token) {
-    await deleteSession(hashSessionToken(token));
+  try {
+    if (token) {
+      await deleteSession(hashSessionToken(token));
+    }
+  } catch {
+    // Clearing the browser cookie still ends the current browser session.
+  } finally {
+    cookieStore.delete(SESSION_COOKIE_NAME);
   }
-
-  cookieStore.delete(SESSION_COOKIE_NAME);
 }

@@ -8,6 +8,9 @@ const credentialsSchema = z.object({
   password: z.string().min(12).max(128),
 });
 
+const DUMMY_PASSWORD_HASH =
+  "nXguPEnEZVaACMxnXWzm2Q:4Si0BjsVOix7WgzUyDYuUBQBDY2drtS-6qhIrtcXCH0IEbUEiUC3w8KpX5QwaNFTiws5TUywZz43Wcv6W1o9zQ";
+
 function invalidCredentialsResponse(): Response {
   return Response.json({ error: "Invalid email or password" }, { status: 401 });
 }
@@ -28,8 +31,10 @@ export async function POST(request: Request): Promise<Response> {
 
   const { email, password } = parsed.data;
   const user = await findUserByEmail(email);
+  const passwordHash = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
+  const isPasswordValid = await verifyPassword(password, passwordHash);
 
-  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+  if (!user || !isPasswordValid) {
     return invalidCredentialsResponse();
   }
 

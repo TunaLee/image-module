@@ -86,19 +86,27 @@ describe("authentication API routes", () => {
     expect(await response.json()).toEqual({ error: "Email is already registered" });
   });
 
-  it("uses one invalid-credentials response when the login account is absent", async () => {
+  it("performs a password verification with one fixed dummy hash when the login account is absent", async () => {
     db.findUserByEmail.mockResolvedValue(null);
 
-    const response = await login(
+    const firstResponse = await login(
       credentialsRequest("http://localhost/api/auth/login", {
         email: "unknown@example.com",
         password: "secure-password",
       }),
     );
+    const secondResponse = await login(
+      credentialsRequest("http://localhost/api/auth/login", {
+        email: "another@example.com",
+        password: "another-password",
+      }),
+    );
 
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: "Invalid email or password" });
-    expect(auth.verifyPassword).not.toHaveBeenCalled();
+    expect(firstResponse.status).toBe(401);
+    expect(await firstResponse.json()).toEqual({ error: "Invalid email or password" });
+    expect(secondResponse.status).toBe(401);
+    expect(auth.verifyPassword).toHaveBeenCalledTimes(2);
+    expect(auth.verifyPassword.mock.calls[0]?.[1]).toBe(auth.verifyPassword.mock.calls[1]?.[1]);
   });
 
   it("starts a session for valid login credentials", async () => {
