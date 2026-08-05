@@ -2,7 +2,7 @@ export type InspectionMode = "ocr" | "visual" | "both";
 
 export type ImagePoint = { x: number; y: number };
 
-export type OcrResult = {
+export type OcrDetectionResult = {
   imageWidth: number;
   imageHeight: number;
   textDetections: {
@@ -11,6 +11,21 @@ export type OcrResult = {
     boundingBox: { points: ImagePoint[] };
   }[];
 };
+
+export type OcrSemanticResult = {
+  equipmentNameOrId: string | null;
+  observedAt: string | null;
+  readings: {
+    label: string;
+    value: string;
+    unit: string | null;
+  }[];
+  statusMessages: string[];
+  otherText: string[];
+  confidence: number | null;
+};
+
+export type OcrResult = OcrDetectionResult & OcrSemanticResult;
 
 export type VisualResult = {
   verdict: "normal" | "abnormal" | "indeterminate";

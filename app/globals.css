@@ -135,7 +135,7 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .detail-header > div > p:last-child { margin: 0.7rem 0 0; color: var(--muted); }
 .detail-layout { display: grid; gap: 1.1rem; }
 .result-photo-panel { align-self: start; overflow: hidden; }
-.result-photo { position: relative; min-height: 20rem; overflow: hidden; border-radius: 1.5rem 1.5rem 0 0; background: #19221e; }
+.result-photo { position: relative; width: 100%; overflow: hidden; border-radius: 1.5rem 1.5rem 0 0; background: #19221e; }
 .result-photo img { object-fit: contain; }
 .ocr-overlay { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; }
 .ocr-overlay polygon { fill: rgba(199, 255, 74, 0.16); stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
@@ -161,6 +161,12 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .severity.high { background: #ffddd8; color: #9f342a; }
 .severity.medium { background: #ffedcb; color: #8b590d; }
 .image-size { margin: 0.9rem 0; color: var(--muted); font-size: 0.72rem; }
+.ocr-facts { margin-top: 1.2rem; }
+.ocr-values { display: grid; gap: 0.35rem; margin: 0; padding: 0; list-style: none; }
+.ocr-values li { display: flex; justify-content: space-between; gap: 0.8rem; }
+.ocr-values span { color: var(--muted); }
+.raw-detections { margin-top: 1.1rem; }
+.raw-detections summary { cursor: pointer; font-size: 0.78rem; font-weight: 800; }
 .detection-list { display: grid; max-height: 33rem; overflow: auto; border-top: 1px solid var(--line); }
 .detection-list article { display: grid; grid-template-columns: 2rem 1fr; gap: 0.65rem; padding: 0.85rem 0; border-bottom: 1px solid var(--line); }
 .detection-index { color: #799084; font-family: monospace; font-size: 0.72rem; }
