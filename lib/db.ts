@@ -13,12 +13,37 @@ export type User = {
 
 export type SessionUser = Pick<User, "id" | "email">;
 
+export class SchemaMigrationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SchemaMigrationError";
+  }
+}
+
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
 function getSql() {
   return neon(getServerEnv().DATABASE_URL);
+}
+
+let schemaInitialization: Promise<void> | undefined;
+
+async function ensureSchema(): Promise<void> {
+  if (!schemaInitialization) {
+    schemaInitialization = initializeSchema().catch((error: unknown) => {
+      schemaInitialization = undefined;
+      throw error;
+    });
+  }
+
+  await schemaInitialization;
+}
+
+async function getReadySql() {
+  await ensureSchema();
+  return getSql();
 }
 
 export async function initializeSchema() {
@@ -60,6 +85,20 @@ export async function initializeSchema() {
     ON inspections (user_id, created_at DESC)
   `;
   await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`;
+  const emailCollisions = await sql`
+    SELECT LOWER(BTRIM(email)) AS normalized_email
+    FROM users
+    GROUP BY LOWER(BTRIM(email))
+    HAVING COUNT(*) > 1
+  `;
+  if (emailCollisions.length > 0) {
+    const normalizedEmails = emailCollisions
+      .map((row) => String(row.normalized_email))
+      .join(", ");
+    throw new SchemaMigrationError(
+      `Cannot normalize legacy email identities because these values collide: ${normalizedEmails}. Resolve the duplicate accounts before retrying schema initialization.`,
+    );
+  }
   await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_check`;
   await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_normalized`;
   await sql`
@@ -90,7 +129,7 @@ export async function initializeSchema() {
 export async function createUser(email: string, passwordHash: string): Promise<User> {
   const id = randomUUID();
   const normalizedEmail = normalizeEmail(email);
-  const sql = getSql();
+  const sql = await getReadySql();
   const rows = await sql`
     INSERT INTO users (id, email, password_hash)
     VALUES (${id}, ${normalizedEmail}, ${passwordHash})
@@ -111,7 +150,7 @@ export async function createUser(email: string, passwordHash: string): Promise<U
 
 export async function findUserByEmail(email: string): Promise<User | null> {
   const normalizedEmail = normalizeEmail(email);
-  const sql = getSql();
+  const sql = await getReadySql();
   const rows = await sql`
     SELECT id, email, password_hash
     FROM users
@@ -134,7 +173,7 @@ export async function insertSession(
   tokenHash: string,
   expiresAt: Date,
 ): Promise<void> {
-  const sql = getSql();
+  const sql = await getReadySql();
   await sql`
     INSERT INTO sessions (id, token_hash, user_id, expires_at)
     VALUES (${randomUUID()}, ${tokenHash}, ${userId}, ${expiresAt.toISOString()})
@@ -142,7 +181,7 @@ export async function insertSession(
 }
 
 export async function findSessionUser(tokenHash: string): Promise<SessionUser | null> {
-  const sql = getSql();
+  const sql = await getReadySql();
   const rows = await sql`
     SELECT users.id, users.email
     FROM sessions
@@ -159,6 +198,6 @@ export async function findSessionUser(tokenHash: string): Promise<SessionUser | 
 }
 
 export async function deleteSession(tokenHash: string): Promise<void> {
-  const sql = getSql();
+  const sql = await getReadySql();
   await sql`DELETE FROM sessions WHERE token_hash = ${tokenHash}`;
 }

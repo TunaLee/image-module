@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { sql } = vi.hoisted(() => ({
   sql: vi.fn(async () => []),
@@ -16,9 +16,26 @@ vi.mock("../lib/env", () => ({
   }),
 }));
 
-import { initializeSchema } from "../lib/db";
+import { initializeSchema, SchemaMigrationError } from "../lib/db";
 
 describe("initializeSchema", () => {
+  beforeEach(() => {
+    sql.mockReset();
+    sql.mockResolvedValue([]);
+  });
+
+  it("reports a legacy case-insensitive email collision before changing data", async () => {
+    sql.mockImplementation(async (strings: TemplateStringsArray) => {
+      const statement = strings.join(" ");
+      return statement.includes("HAVING COUNT(*) > 1")
+        ? [{ normalized_email: "operator@example.com" }]
+        : [];
+    });
+
+    await expect(initializeSchema()).rejects.toThrow(SchemaMigrationError);
+    await expect(initializeSchema()).rejects.toThrow("operator@example.com");
+  });
+
   it("migrates legacy sessions to a UUID primary key and unique token hash", async () => {
     await initializeSchema();
 
