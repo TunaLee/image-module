@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 import { proxy } from "../proxy";
 
-const allowedOrigin = "http://192.168.0.34";
+const allowedOrigin = "http://192.168.0.34:3000";
 
 describe("API CORS proxy", () => {
   it("answers preflight requests for the internal origin with credentialed CORS headers", async () => {
@@ -49,6 +49,18 @@ describe("API CORS proxy", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe(allowedOrigin);
     expect(response.headers.get("access-control-allow-origin")).not.toBe("*");
     expect(response.headers.get("access-control-allow-credentials")).toBe("true");
+  });
+
+  it("allows the local development origin", () => {
+    const response = proxy(
+      new NextRequest("http://localhost:3000/api/auth/register", {
+        method: "POST",
+        headers: { origin: "http://localhost:3000" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:3000");
   });
 
   it("rejects a simple API request from a disallowed origin", () => {

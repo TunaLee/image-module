@@ -1,12 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 const adapters = vi.hoisted(() => ({
-  http: { transport: "http" },
-  PrismaNeon: vi.fn(function PrismaNeon() {
-    return { transport: "websocket" };
-  }),
-  PrismaNeonHttp: vi.fn(function PrismaNeonHttp() {
-    return { transport: "http" };
+  PrismaPg: vi.fn(function PrismaPg() {
+    return { transport: "pg" };
   }),
 }));
 
@@ -16,9 +12,8 @@ const clients = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock("@prisma/adapter-neon", () => ({
-  PrismaNeon: adapters.PrismaNeon,
-  PrismaNeonHttp: adapters.PrismaNeonHttp,
+vi.mock("@prisma/adapter-pg", () => ({
+  PrismaPg: adapters.PrismaPg,
 }));
 
 vi.mock("../generated/prisma/client", () => ({
@@ -31,17 +26,15 @@ vi.mock("../lib/env", () => ({
 
 import { getPrisma } from "../lib/prisma";
 
-describe("Prisma Neon client", () => {
-  it("uses the HTTP adapter so the supported Node 20 runtime needs no WebSocket polyfill", () => {
+describe("Prisma PostgreSQL client", () => {
+  it("uses the PostgreSQL adapter for the local runtime database", () => {
     getPrisma();
 
-    expect(adapters.PrismaNeonHttp).toHaveBeenCalledWith(
-      "postgres://runtime-neon",
-      {},
-    );
-    expect(adapters.PrismaNeon).not.toHaveBeenCalled();
+    expect(adapters.PrismaPg).toHaveBeenCalledWith({
+      connectionString: "postgres://runtime-neon",
+    });
     expect(clients.PrismaClient).toHaveBeenCalledWith({
-      adapter: expect.objectContaining({ transport: "http" }),
+      adapter: expect.objectContaining({ transport: "pg" }),
     });
   });
 });

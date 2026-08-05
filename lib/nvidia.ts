@@ -203,6 +203,11 @@ async function requestNvidia(
         : response;
 
     if (!completedResponse.ok) {
+      console.error("NVIDIA request failed", {
+        endpoint: requestUrl,
+        status: completedResponse.status,
+        body: await completedResponse.text(),
+      });
       throw new ModelRequestError("NVIDIA model request failed.");
     }
 

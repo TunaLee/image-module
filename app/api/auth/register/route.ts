@@ -43,6 +43,7 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: "Email is already registered" }, { status: 409 });
     }
 
+    console.error("Registration failed", error);
     return Response.json({ error: "Unable to register" }, { status: 500 });
   }
 }

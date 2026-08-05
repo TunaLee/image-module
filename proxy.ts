@@ -1,7 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-const ALLOWED_ORIGIN = "http://192.168.0.34";
+const ALLOWED_ORIGINS = new Set([
+  "http://localhost:3000",
+  "http://192.168.0.34:3000",
+]);
 
 const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -10,8 +13,8 @@ const corsHeaders = {
   Vary: "Origin",
 } as const;
 
-function addCorsHeaders(response: NextResponse): NextResponse {
-  response.headers.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+function addCorsHeaders(response: NextResponse, origin: string): NextResponse {
+  response.headers.set("Access-Control-Allow-Origin", origin);
   for (const [name, value] of Object.entries(corsHeaders)) {
     response.headers.set(name, value);
   }
@@ -20,7 +23,7 @@ function addCorsHeaders(response: NextResponse): NextResponse {
 
 export function proxy(request: NextRequest): NextResponse {
   const origin = request.headers.get("origin");
-  const isAllowedOrigin = origin === ALLOWED_ORIGIN;
+  const isAllowedOrigin = origin !== null && ALLOWED_ORIGINS.has(origin);
 
   if (origin && !isAllowedOrigin) {
     return new NextResponse(null, { status: 403 });
@@ -31,11 +34,11 @@ export function proxy(request: NextRequest): NextResponse {
       return new NextResponse(null, { status: 403 });
     }
 
-    return addCorsHeaders(new NextResponse(null, { status: 204 }));
+    return addCorsHeaders(new NextResponse(null, { status: 204 }), origin);
   }
 
   const response = NextResponse.next();
-  return isAllowedOrigin ? addCorsHeaders(response) : response;
+  return isAllowedOrigin ? addCorsHeaders(response, origin) : response;
 }
 
 export const config = {
