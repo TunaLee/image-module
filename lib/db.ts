@@ -27,7 +27,7 @@ export async function initializeSchema() {
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY,
-      email TEXT NOT NULL UNIQUE CHECK (email = LOWER(BTRIM(email))),
+      email TEXT NOT NULL UNIQUE CONSTRAINT users_email_normalized CHECK (email = LOWER(BTRIM(email))),
       password_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
@@ -35,7 +35,7 @@ export async function initializeSchema() {
   await sql`
     CREATE TABLE IF NOT EXISTS sessions (
       id UUID PRIMARY KEY,
-      token_hash TEXT NOT NULL UNIQUE,
+      token_hash TEXT NOT NULL CONSTRAINT sessions_token_hash_key UNIQUE,
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       expires_at TIMESTAMPTZ NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -58,6 +58,32 @@ export async function initializeSchema() {
   await sql`
     CREATE INDEX IF NOT EXISTS inspections_user_created_at_idx
     ON inspections (user_id, created_at DESC)
+  `;
+  await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`;
+  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_check`;
+  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_normalized`;
+  await sql`
+    UPDATE users
+    SET email = LOWER(BTRIM(email))
+    WHERE email <> LOWER(BTRIM(email))
+  `;
+  await sql`
+    ALTER TABLE users
+    ADD CONSTRAINT users_email_normalized CHECK (email = LOWER(BTRIM(email)))
+  `;
+  await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS id UUID`;
+  await sql`UPDATE sessions SET id = gen_random_uuid() WHERE id IS NULL`;
+  await sql`ALTER TABLE sessions ALTER COLUMN id SET NOT NULL`;
+  await sql`ALTER TABLE sessions ALTER COLUMN token_hash SET NOT NULL`;
+  await sql`ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_pkey`;
+  await sql`
+    ALTER TABLE sessions
+    ADD CONSTRAINT sessions_pkey PRIMARY KEY (id)
+  `;
+  await sql`ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_token_hash_key`;
+  await sql`
+    ALTER TABLE sessions
+    ADD CONSTRAINT sessions_token_hash_key UNIQUE (token_hash)
   `;
 }
 
