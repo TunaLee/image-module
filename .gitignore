@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# runtime inspection images (a .gitkeep preserves the directory)
+/public/uploads/
+
 # local brainstorming companion artifacts
 /.superpowers/
 
