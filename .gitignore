@@ -20,6 +20,9 @@
 # local brainstorming companion artifacts
 /.superpowers/
 
+# local Git worktrees
+/.worktrees/
+
 # production
 /build
 
