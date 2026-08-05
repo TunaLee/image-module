@@ -24,6 +24,8 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+const EMAIL_COLLISION_MARKER = "EQUIPMENT_INSPECTION_EMAIL_COLLISION:";
+
 function getSql() {
   return neon(getServerEnv().DATABASE_URL);
 }
@@ -49,81 +51,108 @@ async function getReadySql() {
 export async function initializeSchema() {
   const sql = getSql();
 
-  await sql`
-    CREATE TABLE IF NOT EXISTS users (
-      id UUID PRIMARY KEY,
-      email TEXT NOT NULL UNIQUE CONSTRAINT users_email_normalized CHECK (email = LOWER(BTRIM(email))),
-      password_hash TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id UUID PRIMARY KEY,
-      token_hash TEXT NOT NULL CONSTRAINT sessions_token_hash_key UNIQUE,
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at TIMESTAMPTZ NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS inspections (
-      id UUID PRIMARY KEY,
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      image_path TEXT NOT NULL,
-      mode TEXT NOT NULL CHECK (mode IN ('ocr', 'visual', 'both')),
-      criterion TEXT,
-      ocr_result JSONB,
-      visual_result JSONB,
-      status TEXT NOT NULL CHECK (status IN ('completed', 'partial', 'failed')),
-      error_message TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS inspections_user_created_at_idx
-    ON inspections (user_id, created_at DESC)
-  `;
-  await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`;
-  const emailCollisions = await sql`
-    SELECT LOWER(BTRIM(email)) AS normalized_email
-    FROM users
-    GROUP BY LOWER(BTRIM(email))
-    HAVING COUNT(*) > 1
-  `;
-  if (emailCollisions.length > 0) {
-    const normalizedEmails = emailCollisions
-      .map((row) => String(row.normalized_email))
-      .join(", ");
-    throw new SchemaMigrationError(
-      `Cannot normalize legacy email identities because these values collide: ${normalizedEmails}. Resolve the duplicate accounts before retrying schema initialization.`,
-    );
+  try {
+    await sql.transaction((transactionSql) => [
+      transactionSql`SELECT pg_advisory_xact_lock(803522992, 1)`,
+      transactionSql`
+        CREATE TABLE IF NOT EXISTS users (
+          id UUID PRIMARY KEY,
+          email TEXT NOT NULL UNIQUE CONSTRAINT users_email_normalized CHECK (email = LOWER(BTRIM(email))),
+          password_hash TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `,
+      transactionSql`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id UUID PRIMARY KEY,
+          token_hash TEXT NOT NULL CONSTRAINT sessions_token_hash_key UNIQUE,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          expires_at TIMESTAMPTZ NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `,
+      transactionSql`
+        CREATE TABLE IF NOT EXISTS inspections (
+          id UUID PRIMARY KEY,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          image_path TEXT NOT NULL,
+          mode TEXT NOT NULL CHECK (mode IN ('ocr', 'visual', 'both')),
+          criterion TEXT,
+          ocr_result JSONB,
+          visual_result JSONB,
+          status TEXT NOT NULL CHECK (status IN ('completed', 'partial', 'failed')),
+          error_message TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `,
+      transactionSql`
+        CREATE INDEX IF NOT EXISTS inspections_user_created_at_idx
+        ON inspections (user_id, created_at DESC)
+      `,
+      transactionSql`CREATE EXTENSION IF NOT EXISTS pgcrypto`,
+      transactionSql`
+        DO $schema_migration$
+        DECLARE
+          normalized_collisions TEXT;
+        BEGIN
+          SELECT STRING_AGG(normalized_email, ', ' ORDER BY normalized_email)
+          INTO normalized_collisions
+          FROM (
+            SELECT LOWER(BTRIM(email)) AS normalized_email
+            FROM users
+            GROUP BY LOWER(BTRIM(email))
+            HAVING COUNT(*) > 1
+          ) AS collisions;
+
+          IF normalized_collisions IS NOT NULL THEN
+            RAISE EXCEPTION USING
+              MESSAGE = 'EQUIPMENT_INSPECTION_EMAIL_COLLISION:' || normalized_collisions;
+          END IF;
+        END
+        $schema_migration$
+      `,
+      transactionSql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_check`,
+      transactionSql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_normalized`,
+      transactionSql`
+        UPDATE users
+        SET email = LOWER(BTRIM(email))
+        WHERE email <> LOWER(BTRIM(email))
+      `,
+      transactionSql`
+        ALTER TABLE users
+        ADD CONSTRAINT users_email_normalized CHECK (email = LOWER(BTRIM(email)))
+      `,
+      transactionSql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS id UUID`,
+      transactionSql`UPDATE sessions SET id = gen_random_uuid() WHERE id IS NULL`,
+      transactionSql`ALTER TABLE sessions ALTER COLUMN id SET NOT NULL`,
+      transactionSql`ALTER TABLE sessions ALTER COLUMN token_hash SET NOT NULL`,
+      transactionSql`ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_pkey`,
+      transactionSql`
+        ALTER TABLE sessions
+        ADD CONSTRAINT sessions_pkey PRIMARY KEY (id)
+      `,
+      transactionSql`ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_token_hash_key`,
+      transactionSql`
+        ALTER TABLE sessions
+        ADD CONSTRAINT sessions_token_hash_key UNIQUE (token_hash)
+      `,
+    ]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const markerIndex = message.indexOf(EMAIL_COLLISION_MARKER);
+
+    if (markerIndex >= 0) {
+      const normalizedEmails = message
+        .slice(markerIndex + EMAIL_COLLISION_MARKER.length)
+        .split("\n", 1)[0]
+        .trim();
+      throw new SchemaMigrationError(
+        `Cannot normalize legacy email identities because these values collide: ${normalizedEmails}. Resolve the duplicate accounts before retrying schema initialization.`,
+      );
+    }
+
+    throw error;
   }
-  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_check`;
-  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_normalized`;
-  await sql`
-    UPDATE users
-    SET email = LOWER(BTRIM(email))
-    WHERE email <> LOWER(BTRIM(email))
-  `;
-  await sql`
-    ALTER TABLE users
-    ADD CONSTRAINT users_email_normalized CHECK (email = LOWER(BTRIM(email)))
-  `;
-  await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS id UUID`;
-  await sql`UPDATE sessions SET id = gen_random_uuid() WHERE id IS NULL`;
-  await sql`ALTER TABLE sessions ALTER COLUMN id SET NOT NULL`;
-  await sql`ALTER TABLE sessions ALTER COLUMN token_hash SET NOT NULL`;
-  await sql`ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_pkey`;
-  await sql`
-    ALTER TABLE sessions
-    ADD CONSTRAINT sessions_pkey PRIMARY KEY (id)
-  `;
-  await sql`ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_token_hash_key`;
-  await sql`
-    ALTER TABLE sessions
-    ADD CONSTRAINT sessions_token_hash_key UNIQUE (token_hash)
-  `;
 }
 
 export async function createUser(email: string, passwordHash: string): Promise<User> {
