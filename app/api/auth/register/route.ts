@@ -13,7 +13,7 @@ function invalidCredentialsResponse(): Response {
 }
 
 function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
 
 export async function POST(request: Request): Promise<Response> {

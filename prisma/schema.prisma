@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String       @id @db.Uuid
+  email        String       @unique(map: "users_email_key")
+  passwordHash String       @map("password_hash")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  sessions     Session[]
+  inspections  Inspection[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @db.Uuid
+  tokenHash String   @unique(map: "sessions_token_hash_key") @map("token_hash")
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Inspection {
+  id           String   @id @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  imagePath    String   @map("image_path")
+  mode         String
+  criterion    String?
+  ocrResult    Json?    @map("ocr_result")
+  visualResult Json?    @map("visual_result")
+  status       String
+  errorMessage String?  @map("error_message")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)], map: "inspections_user_created_at_idx")
+  @@map("inspections")
+}

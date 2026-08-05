@@ -73,7 +73,7 @@ describe("authentication API routes", () => {
 
   it("returns conflict when registration encounters a duplicate email", async () => {
     auth.hashPassword.mockResolvedValue("password-hash");
-    db.createUser.mockRejectedValue({ code: "23505" });
+    db.createUser.mockRejectedValue({ code: "P2002" });
 
     const response = await register(
       credentialsRequest("http://localhost/api/auth/register", {
@@ -132,7 +132,7 @@ describe("authentication API routes", () => {
   });
 
   it("clears the current session during logout", async () => {
-    const response = await logout(new Request("http://localhost/api/auth/logout", { method: "POST" }));
+    const response = await logout();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
@@ -142,7 +142,7 @@ describe("authentication API routes", () => {
   it("returns unauthorized when no current session exists", async () => {
     auth.getCurrentUser.mockResolvedValue(null);
 
-    const response = await session(new Request("http://localhost/api/auth/session"));
+    const response = await session();
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Unauthorized" });
@@ -154,7 +154,7 @@ describe("authentication API routes", () => {
       email: "operator@example.com",
     });
 
-    const response = await session(new Request("http://localhost/api/auth/session"));
+    const response = await session();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
