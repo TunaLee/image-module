@@ -8,7 +8,6 @@ const serverEnvSchema = z.object({
   SESSION_SECRET: z.string().min(32),
 });
 
-
 export function getServerEnv(
   source: Record<string, string | undefined> = process.env,
 ) {
