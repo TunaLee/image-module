@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 
+import { replacePreviewObjectUrl } from "./client-behavior";
 import type { InspectionMode, InspectionRecord } from "../lib/types";
 
 type Dimensions = { width: number; height: number };
@@ -67,12 +68,23 @@ export function InspectionForm({
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const previewUrlRef = useRef<string | null>(null);
+
+  function updatePreviewUrl(nextUrl: string | null) {
+    const updatedUrl = replacePreviewObjectUrl(
+      previewUrlRef.current,
+      nextUrl,
+      URL.revokeObjectURL,
+    );
+    previewUrlRef.current = updatedUrl;
+    setPreviewUrl(updatedUrl);
+  }
 
   useEffect(() => {
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
-  }, [previewUrl]);
+  }, []);
 
   async function handlePhoto(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0];
@@ -83,13 +95,12 @@ export function InspectionForm({
     try {
       const resized = await resizeImage(selected);
       setFile(resized);
-      setPreviewUrl((previous) => {
-        if (previous) URL.revokeObjectURL(previous);
-        return URL.createObjectURL(resized);
-      });
+      updatePreviewUrl(URL.createObjectURL(resized));
       setMessage("긴 변 640px 이하의 JPEG로 준비했습니다.");
     } catch {
       setFile(null);
+      updatePreviewUrl(null);
+      if (inputRef.current) inputRef.current.value = "";
       setMessage("사진을 처리하지 못했습니다. 다른 사진을 선택해 주세요.");
     } finally {
       setPending(false);
@@ -135,7 +146,7 @@ export function InspectionForm({
             : "검사가 완료되어 기록에 저장되었습니다.",
       );
       setFile(null);
-      setPreviewUrl(null);
+      updatePreviewUrl(null);
       if (inputRef.current) inputRef.current.value = "";
     } catch {
       setMessage("서버에 연결하지 못했습니다. 네트워크를 확인해 주세요.");

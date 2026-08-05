@@ -125,6 +125,7 @@ button:disabled { cursor: wait; opacity: 0.58; }
 
 .loading-shell { display: grid; min-height: 100vh; place-content: center; gap: 1rem; color: var(--muted); text-align: center; }
 .loader { width: 2.2rem; height: 2.2rem; margin: auto; border: 3px solid #dbe3de; border-top-color: var(--accent-dark); border-radius: 50%; animation: spin 800ms linear infinite; }
+.retry-button { min-width: 7rem; margin: auto; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); padding: 0.7rem 1rem; color: var(--ink); font-weight: 800; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .detail-shell { max-width: 1180px; min-height: 100vh; margin: auto; padding: 1.5rem 1.2rem 5rem; }

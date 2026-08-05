@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { sessionResponseAction } from "../components/client-behavior";
 import { InspectionForm } from "../components/inspection-form";
 import { InspectionList } from "../components/inspection-list";
 
@@ -12,6 +13,7 @@ export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -19,14 +21,21 @@ export default function Home() {
     async function loadSession() {
       try {
         const response = await fetch("/api/auth/session", { signal: controller.signal });
-        if (!response.ok) {
+        const action = sessionResponseAction(response.status);
+        if (action === "redirect-login") {
           router.replace("/login");
+          return;
+        }
+        if (action === "show-error") {
+          setSessionError("로그인 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
           return;
         }
         const payload = (await response.json()) as { user: SessionUser };
         setUser(payload.user);
       } catch (caught) {
-        if (!(caught instanceof DOMException && caught.name === "AbortError")) router.replace("/login");
+        if (!(caught instanceof DOMException && caught.name === "AbortError")) {
+          setSessionError("서버에 연결하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.");
+        }
       } finally {
         setLoading(false);
       }
@@ -43,6 +52,17 @@ export default function Home() {
 
   function handleCreated() {
     setRefreshKey((value) => value + 1);
+  }
+
+  if (sessionError) {
+    return (
+      <main className="loading-shell">
+        <p className="error-message" role="alert">{sessionError}</p>
+        <button className="retry-button" type="button" onClick={() => window.location.reload()}>
+          다시 시도
+        </button>
+      </main>
+    );
   }
 
   if (loading || !user) {
