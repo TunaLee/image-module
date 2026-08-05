@@ -1,12 +1,15 @@
 export type InspectionMode = "ocr" | "visual" | "both";
 
+export type ImagePoint = { x: number; y: number };
+
 export type OcrResult = {
-  equipmentNameOrId: string | null;
-  observedAt: string | null;
-  readings: { label: string; value: string; unit: string | null }[];
-  statusMessages: string[];
-  otherText: string[];
-  confidence: number | null;
+  imageWidth: number;
+  imageHeight: number;
+  textDetections: {
+    text: string;
+    confidence: number;
+    boundingBox: { points: ImagePoint[] };
+  }[];
 };
 
 export type VisualResult = {

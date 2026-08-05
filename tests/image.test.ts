@@ -29,7 +29,32 @@ describe("saveUpload", () => {
 
     expect(saved.imagePath).toMatch(/^\/uploads\/[0-9a-f-]{36}\.jpg$/);
     expect(saved.base64).toBe(Buffer.from(await readFile(localPath)).toString("base64"));
+    expect(saved).toMatchObject({ width: 2, height: 1 });
     await expect(access(localPath)).resolves.toBeUndefined();
+  });
+
+  it("returns the dimensions of the resized JPEG that is persisted", async () => {
+    const png = await sharp({
+      create: { width: 800, height: 400, channels: 3, background: "#ffffff" },
+    })
+      .png()
+      .toBuffer();
+    const file = new NodeFile([png], "equipment.png", { type: "image/png" });
+
+    const saved = await saveUpload(file as unknown as File);
+    const localPath = path.join(
+      process.cwd(),
+      "public",
+      "uploads",
+      saved.imagePath.replace("/uploads/", ""),
+    );
+    createdFiles.push(localPath);
+
+    expect(saved).toMatchObject({ width: 640, height: 320 });
+    await expect(sharp(await readFile(localPath)).metadata()).resolves.toMatchObject({
+      width: 640,
+      height: 320,
+    });
   });
 
   it("rejects an unsupported upload media type before persisting it", async () => {

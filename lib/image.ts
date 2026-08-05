@@ -19,12 +19,14 @@ export class UploadValidationError extends Error {
 
 export async function saveUpload(
   file: File,
-): Promise<{ imagePath: string; base64: string }> {
+): Promise<{ imagePath: string; base64: string; width: number; height: number }> {
   if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) {
     throw new UploadValidationError("Image files must be no larger than 10 MB.");
   }
 
   let jpegBytes: Buffer;
+  let width: number;
+  let height: number;
   try {
     const sourceBytes = Buffer.from(await file.arrayBuffer());
     const metadata = await sharp(sourceBytes, { limitInputPixels: false }).metadata();
@@ -41,11 +43,14 @@ export async function saveUpload(
       throw new UploadValidationError("Only JPEG, PNG, and WebP images are accepted.");
     }
 
-    jpegBytes = await sharp(sourceBytes, { limitInputPixels: MAX_IMAGE_PIXELS })
+    const jpeg = await sharp(sourceBytes, { limitInputPixels: MAX_IMAGE_PIXELS })
       .rotate()
       .resize({ width: 640, height: 640, fit: "inside", withoutEnlargement: true })
       .jpeg()
-      .toBuffer();
+      .toBuffer({ resolveWithObject: true });
+    jpegBytes = jpeg.data;
+    width = jpeg.info.width;
+    height = jpeg.info.height;
   } catch (error) {
     if (error instanceof UploadValidationError) {
       throw error;
@@ -62,5 +67,7 @@ export async function saveUpload(
   return {
     imagePath: `/uploads/${filename}`,
     base64: jpegBytes.toString("base64"),
+    width,
+    height,
   };
 }
