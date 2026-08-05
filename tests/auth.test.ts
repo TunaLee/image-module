@@ -5,6 +5,7 @@ import {
   hashSessionToken,
   verifyPassword,
 } from "../lib/auth";
+import { normalizeEmail } from "../lib/db";
 
 describe("credentials", () => {
   it("verifies the correct password only", async () => {
@@ -18,5 +19,9 @@ describe("credentials", () => {
 
   it("does not retain a raw session token", () => {
     expect(hashSessionToken("session-token")).not.toBe("session-token");
+  });
+
+  it("normalizes email identity keys before database access", () => {
+    expect(normalizeEmail("  Operator@Example.COM  ")).toBe("operator@example.com");
   });
 });

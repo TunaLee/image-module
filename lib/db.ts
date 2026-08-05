@@ -13,6 +13,10 @@ export type User = {
 
 export type SessionUser = Pick<User, "id" | "email">;
 
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 function getSql() {
   return neon(getServerEnv().DATABASE_URL);
 }
@@ -23,14 +27,15 @@ export async function initializeSchema() {
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY,
-      email TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE CHECK (email = LOWER(BTRIM(email))),
       password_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
   await sql`
     CREATE TABLE IF NOT EXISTS sessions (
-      token_hash TEXT PRIMARY KEY,
+      id UUID PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       expires_at TIMESTAMPTZ NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -58,10 +63,11 @@ export async function initializeSchema() {
 
 export async function createUser(email: string, passwordHash: string): Promise<User> {
   const id = randomUUID();
+  const normalizedEmail = normalizeEmail(email);
   const sql = getSql();
   const rows = await sql`
     INSERT INTO users (id, email, password_hash)
-    VALUES (${id}, ${email}, ${passwordHash})
+    VALUES (${id}, ${normalizedEmail}, ${passwordHash})
     RETURNING id, email, password_hash
   `;
   const user = rows[0];
@@ -78,11 +84,12 @@ export async function createUser(email: string, passwordHash: string): Promise<U
 }
 
 export async function findUserByEmail(email: string): Promise<User | null> {
+  const normalizedEmail = normalizeEmail(email);
   const sql = getSql();
   const rows = await sql`
     SELECT id, email, password_hash
     FROM users
-    WHERE email = ${email}
+    WHERE email = ${normalizedEmail}
     LIMIT 1
   `;
   const user = rows[0];
@@ -103,8 +110,8 @@ export async function insertSession(
 ): Promise<void> {
   const sql = getSql();
   await sql`
-    INSERT INTO sessions (token_hash, user_id, expires_at)
-    VALUES (${tokenHash}, ${userId}, ${expiresAt.toISOString()})
+    INSERT INTO sessions (id, token_hash, user_id, expires_at)
+    VALUES (${randomUUID()}, ${tokenHash}, ${userId}, ${expiresAt.toISOString()})
   `;
 }
 
