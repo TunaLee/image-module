@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# local brainstorming companion artifacts
+/.superpowers/
+
 # production
 /build
 
