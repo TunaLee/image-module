@@ -4,6 +4,7 @@ import { neon } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 
 import { getServerEnv } from "./env";
+import type { InspectionRecord, OcrResult, VisualResult } from "./types";
 
 export type User = {
   id: string;
@@ -12,6 +13,8 @@ export type User = {
 };
 
 export type SessionUser = Pick<User, "id" | "email">;
+
+export type NewInspectionRecord = Omit<InspectionRecord, "id" | "createdAt">;
 
 export class SchemaMigrationError extends Error {
   constructor(message: string) {
@@ -229,4 +232,72 @@ export async function findSessionUser(tokenHash: string): Promise<SessionUser | 
 export async function deleteSession(tokenHash: string): Promise<void> {
   const sql = await getReadySql();
   await sql`DELETE FROM sessions WHERE token_hash = ${tokenHash}`;
+}
+
+function toInspectionRecord(row: Record<string, unknown>): InspectionRecord {
+  return {
+    id: row.id as string,
+    imagePath: row.image_path as string,
+    mode: row.mode as InspectionRecord["mode"],
+    criterion: (row.criterion as string | null) ?? null,
+    ocrResult: (row.ocr_result as OcrResult | null) ?? null,
+    visualResult: (row.visual_result as VisualResult | null) ?? null,
+    status: row.status as InspectionRecord["status"],
+    errorMessage: (row.error_message as string | null) ?? null,
+    createdAt: new Date(row.created_at as string | Date).toISOString(),
+  };
+}
+
+export async function createInspectionRecord(
+  userId: string,
+  record: NewInspectionRecord,
+): Promise<InspectionRecord> {
+  const sql = await getReadySql();
+  const rows = await sql`
+    INSERT INTO inspections (
+      id, user_id, image_path, mode, criterion, ocr_result, visual_result, status, error_message
+    )
+    VALUES (
+      ${randomUUID()}, ${userId}, ${record.imagePath}, ${record.mode}, ${record.criterion},
+      ${record.ocrResult === null ? null : JSON.stringify(record.ocrResult)}::jsonb,
+      ${record.visualResult === null ? null : JSON.stringify(record.visualResult)}::jsonb,
+      ${record.status}, ${record.errorMessage}
+    )
+    RETURNING id, image_path, mode, criterion, ocr_result, visual_result, status, error_message, created_at
+  `;
+  const saved = rows[0];
+
+  if (!saved) {
+    throw new Error("Inspection creation did not return a record");
+  }
+
+  return toInspectionRecord(saved);
+}
+
+export async function listRecentInspectionRecords(userId: string): Promise<InspectionRecord[]> {
+  const sql = await getReadySql();
+  const rows = await sql`
+    SELECT id, image_path, mode, criterion, ocr_result, visual_result, status, error_message, created_at
+    FROM inspections
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+    LIMIT 6
+  `;
+
+  return rows.map((row) => toInspectionRecord(row));
+}
+
+export async function findInspectionByIdForUser(
+  userId: string,
+  inspectionId: string,
+): Promise<InspectionRecord | null> {
+  const sql = await getReadySql();
+  const rows = await sql`
+    SELECT id, image_path, mode, criterion, ocr_result, visual_result, status, error_message, created_at
+    FROM inspections
+    WHERE id = ${inspectionId} AND user_id = ${userId}
+    LIMIT 1
+  `;
+
+  return rows[0] ? toInspectionRecord(rows[0]) : null;
 }
