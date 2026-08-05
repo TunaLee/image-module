@@ -39,4 +39,45 @@ describe("saveUpload", () => {
       UploadValidationError,
     );
   });
+
+  it("rejects an SVG that is falsely declared as a PNG", async () => {
+    const file = new NodeFile(
+      ['<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'],
+      "equipment.png",
+      { type: "image/png" },
+    );
+
+    const outcome = await saveUpload(file as unknown as File).then(
+      (saved) => {
+        createdFiles.push(
+          path.join(process.cwd(), "public", "uploads", saved.imagePath.replace("/uploads/", "")),
+        );
+        return saved;
+      },
+      (error: unknown) => error,
+    );
+
+    expect(outcome).toBeInstanceOf(UploadValidationError);
+  });
+
+  it("rejects a decoded image whose pixel count exceeds the safety limit", async () => {
+    const oversizedPng = await sharp({
+      create: { width: 5000, height: 5000, channels: 3, background: "#000000" },
+    })
+      .png()
+      .toBuffer();
+    const file = new NodeFile([oversizedPng], "large.png", { type: "image/png" });
+
+    const outcome = await saveUpload(file as unknown as File).then(
+      (saved) => {
+        createdFiles.push(
+          path.join(process.cwd(), "public", "uploads", saved.imagePath.replace("/uploads/", "")),
+        );
+        return saved;
+      },
+      (error: unknown) => error,
+    );
+
+    expect(outcome).toBeInstanceOf(UploadValidationError);
+  });
 });

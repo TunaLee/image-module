@@ -7,7 +7,8 @@ import path from "node:path";
 import sharp from "sharp";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const ACCEPTED_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_IMAGE_PIXELS = 20_000_000;
+const ACCEPTED_IMAGE_FORMATS = new Set(["jpeg", "png", "webp"]);
 
 export class UploadValidationError extends Error {
   constructor(message: string) {
@@ -19,22 +20,37 @@ export class UploadValidationError extends Error {
 export async function saveUpload(
   file: File,
 ): Promise<{ imagePath: string; base64: string }> {
-  if (!ACCEPTED_MEDIA_TYPES.has(file.type)) {
-    throw new UploadValidationError("Only JPEG, PNG, and WebP images are accepted.");
-  }
-
   if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) {
     throw new UploadValidationError("Image files must be no larger than 10 MB.");
   }
 
   let jpegBytes: Buffer;
   try {
-    jpegBytes = await sharp(Buffer.from(await file.arrayBuffer()))
+    const sourceBytes = Buffer.from(await file.arrayBuffer());
+    const metadata = await sharp(sourceBytes, { limitInputPixels: false }).metadata();
+    const frameCount = metadata.pages ?? 1;
+    const pixelCount = (metadata.width ?? 0) * (metadata.height ?? 0) * frameCount;
+
+    if (
+      !metadata.format ||
+      !ACCEPTED_IMAGE_FORMATS.has(metadata.format) ||
+      !Number.isSafeInteger(pixelCount) ||
+      pixelCount <= 0 ||
+      pixelCount > MAX_IMAGE_PIXELS
+    ) {
+      throw new UploadValidationError("Only JPEG, PNG, and WebP images are accepted.");
+    }
+
+    jpegBytes = await sharp(sourceBytes, { limitInputPixels: MAX_IMAGE_PIXELS })
       .rotate()
       .resize({ width: 640, height: 640, fit: "inside", withoutEnlargement: true })
       .jpeg()
       .toBuffer();
-  } catch {
+  } catch (error) {
+    if (error instanceof UploadValidationError) {
+      throw error;
+    }
+
     throw new UploadValidationError("The uploaded image could not be processed.");
   }
 

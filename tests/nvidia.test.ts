@@ -64,6 +64,7 @@ describe("runOcr", () => {
     );
     const request = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(request.model).toBe("nvidia/nemotron-ocr-v2");
+    expect(request).not.toHaveProperty("response_format");
     expect(request.messages[0].content).toContainEqual({
       type: "image_url",
       image_url: { url: "data:image/jpeg;base64,jpeg-data" },
