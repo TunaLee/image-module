@@ -15,6 +15,14 @@ afterEach(() => {
 });
 
 describe("structured NVIDIA results", () => {
+  it("parses a visual JSON object wrapped in the model's prose and code fence", () => {
+    expect(
+      parseVisualResult(
+        'Assessment follows.\n```json\n{"verdict":"indeterminate","summary":"Possible burn mark","findings":[],"criteriaAssessment":"Needs review","confidence":null}\n```\nPlease review.',
+      ),
+    ).toMatchObject({ verdict: "indeterminate", summary: "Possible burn mark" });
+  });
+
   it("rejects a visual response with an unknown verdict", () => {
     expect(() => parseVisualResult('{"verdict":"maybe"}')).toThrow();
   });

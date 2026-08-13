@@ -133,11 +133,16 @@ export function parseOcrResult(
 }
 
 export function parseOcrSemanticResult(content: string): OcrSemanticResult {
-  return ocrSemanticResultSchema.parse(JSON.parse(content));
+  return ocrSemanticResultSchema.parse(parseModelJson(content));
 }
 
 export function parseVisualResult(content: string): VisualResult {
-  return visualResultSchema.parse(JSON.parse(content));
+  return visualResultSchema.parse(parseModelJson(content));
+}
+
+function parseModelJson(content: string): unknown {
+  const fencedJson = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1];
+  return JSON.parse(fencedJson ?? content);
 }
 
 function wait(milliseconds: number): Promise<void> {
