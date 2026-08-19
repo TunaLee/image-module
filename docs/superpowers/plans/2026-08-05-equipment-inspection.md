@@ -90,6 +90,7 @@ export type VisualResult = { verdict: "normal" | "abnormal" | "indeterminate"; s
 export type InspectionRecord = { id: string; imagePath: string; mode: InspectionMode; criterion: string | null; ocrResult: OcrResult | null; visualResult: VisualResult | null; status: "completed" | "partial" | "failed"; errorMessage: string | null; createdAt: string };
 ```
 
+
 ```ts
 // lib/env.ts
 import "server-only";
