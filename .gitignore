@@ -40,6 +40,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# local Docker deployment artifacts
+/docker-build*.log
+/docker-npm-ci*.log
+/image-process-module-images.tar
+
 # env files (can opt-in for committing if needed)
 .env*
 

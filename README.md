@@ -88,6 +88,46 @@
 
 `NVIDIA_API_KEY`, `DATABASE_URL`, `SESSION_SECRET`은 브라우저에 전달하지 말고 `.env.local`에만 보관하세요.
 
+## 폐쇄망 Docker 운영
+
+앱과 PostgreSQL 데이터베이스는 Docker Compose로 함께 실행합니다. 이미지 빌드는 외부망이 가능한 환경에서 수행하고, 생성한 이미지 묶음을 폐쇄망으로 반입합니다. 데이터베이스 데이터와 업로드 사진은 Docker named volume에 영속화됩니다.
+
+1. 외부망 빌드 환경에서 `.env.example`을 `.env.local`로 복사해 다음 값을 설정합니다. `POSTGRES_PASSWORD`와 `SESSION_SECRET`은 운영용 무작위 값으로 반드시 변경합니다.
+
+   ```powershell
+   Copy-Item .env.example .env.local
+   ```
+
+   `DATABASE_URL` 및 `DIRECT_URL`은 기본값처럼 `db` 호스트를 사용해야 앱 컨테이너가 Compose의 PostgreSQL 컨테이너에 연결합니다. `NVIDIA_API_KEY`는 실제로 접근 가능한 NVIDIA 또는 사내 호환 API가 있을 때만 유효합니다.
+
+2. 앱 이미지를 만들고 PostgreSQL 기본 이미지를 함께 tar로 내보냅니다.
+
+   ```powershell
+   docker compose build
+   docker save image-process-module-app:latest postgres:16-alpine -o image-process-module-images.tar
+   ```
+
+   앱 이미지는 Compose에서 `image-process-module-app:latest`로 고정했으므로 프로젝트 폴더 이름과 무관하게 같은 `docker save` 명령을 사용합니다.
+
+3. `image-process-module-images.tar`와 폐쇄망용 `.env.local`을 대상 PC로 복사합니다. `.env.local`은 비밀값이므로 안전한 전달 매체를 사용합니다.
+
+4. 폐쇄망 PC의 프로젝트 폴더에서 이미지를 불러오고 서비스를 시작합니다.
+
+   ```powershell
+   docker load -i image-process-module-images.tar
+   docker compose up -d
+   ```
+
+   최초 실행 시 `migrate` 서비스가 PostgreSQL 초기화 뒤 Prisma migration을 적용합니다. 상태는 `docker compose ps`와 `docker compose logs migrate`로 확인할 수 있습니다. 이후 휴대폰에서는 `http://<PC-LAN-IP>:3000`으로 접속합니다.
+
+5. 일상적인 재시작은 다음 명령으로 수행합니다. named volume을 지우지 않는 한 사용자·검사 이력과 업로드 사진은 유지됩니다.
+
+   ```powershell
+   docker compose up -d
+   ```
+
+`docker compose down -v`는 데이터베이스와 업로드 volume까지 삭제하므로, 복구 계획 없이 실행하지 마세요.
+
 ## API CORS
 
 API의 교차 출처 요청은 내부 웹 클라이언트 Origin `http://192.168.0.34`에만 허용됩니다. 해당 Origin의 `GET`, `POST`, `OPTIONS` 요청과 쿠키 자격 증명을 지원하며, 다른 Origin의 모든 브라우저 요청을 거부합니다. 허용 주소를 변경해야 하면 `proxy.ts`의 정확한 Origin 값을 변경하세요. 와일드카드 Origin은 사용하지 않습니다.

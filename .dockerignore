@@ -1,0 +1,11 @@
+node_modules
+.next
+.env*
+.git
+.gstack-codex-txn
+.superpowers
+.worktrees
+coverage
+public/uploads
+*.log
+npm-debug.log*
